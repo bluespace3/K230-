@@ -3,14 +3,13 @@
 CanMV v1.4.3 (Yahboom K230) MicroPython
 
 状态机：
-DETECTING → 人脸检测循环
-RECORDING  → 检测到新人脸，蜂鸣 + 录音
-UPLOADING  → 录音结束，上传到后端（后台线程，不阻塞检测）
+DETECTING → 人脸检测 + 轮询后端指令
+RECORDING → 收到后端录音指令，蜂鸣 + 录音
+UPLOADING → 录音结束，上传到后端
 """
 import os
 import sys
 import time
-import _thread
 import image
 from media.sensor import Sensor
 from media.display import Display
@@ -42,17 +41,13 @@ AI_WIDTH = 320
 AI_HEIGHT = 240
 
 RECORD_DURATION = 5  # 录音秒数
-COOLDOWN_MS = 5000  # 录音后冷却 5 秒
 DETECT_INTERVAL_MS = 5000  # 人脸检测间隔 5 秒
 
 # ── 状态 ───────────────────────────────────────
 DETECTING = 0
 RECORDING = 1
 UPLOADING = 2
-_last_record_time = [0]  # 用列表包装，避免 global 声明
 _last_detect_time = [0]  # 上次人脸检测时间
-_need_retry = [False]    # 录音失败后允许重试一次
-_uploading = [False]     # 后台上传进行中标记
 
 
 def _sensor_pause(sensor):
@@ -70,32 +65,6 @@ def _sensor_resume(sensor):
     Display.bind_layer(**sensor.bind_info(x=0, y=0, chn=0), layer=Display.LAYER_VIDEO1)
     sensor.run()
     logger.info("Main", "传感器已恢复")
-
-
-def _upload_voice_thread(filepath):
-    """后台线程：上传语音，完成后更新状态。"""
-    upload_ok = False
-    try:
-        logger.info("Upload", "后台线程开始上传: " + filepath)
-        result = http_client.send_voice_file(filepath)
-        if result:
-            logger.info("Upload", "上传成功: " + str(result.get("status")))
-            upload_ok = True
-        else:
-            logger.warn("Upload", "上传失败，保留本地文件: " + filepath)
-    except Exception as e:
-        logger.error("Upload", "上传异常: " + str(e))
-    finally:
-        _uploading[0] = False
-        _last_record_time[0] = time.ticks_ms()
-        _need_retry[0] = True
-        # 只有上传成功才删除本地录音
-        if upload_ok:
-            try:
-                os.remove(filepath)
-            except Exception:
-                pass
-        logger.info("Upload", "后台线程结束")
 
 
 def main():
@@ -167,12 +136,11 @@ def main():
                 os.exitpoint()
 
                 if state == DETECTING:
-                    # ── 人脸检测（每 20 秒检测一次）──
+                    # ── 人脸检测（每 5 秒检测一次，仅上报事件）──
                     now = time.ticks_ms()
-                    cooldown_ok = time.ticks_diff(now, _last_record_time[0]) > COOLDOWN_MS
                     detect_ok = time.ticks_diff(now, _last_detect_time[0]) > DETECT_INTERVAL_MS
 
-                    if detect_ok and cooldown_ok and not _uploading[0]:
+                    if detect_ok:
                         _last_detect_time[0] = now
                         clock.tick()
                         ai_img = sensor.snapshot(chn=1)
@@ -195,27 +163,14 @@ def main():
                                     color=(0, 255, 0, 255), thickness=2,
                                 )
                         Display.show_image(osd_img, 0, 0, Display.LAYER_OSD1)
-
-                        if face_detect.face_just_arrived():
-                            logger.info("Main", "新人脸到达，准备录音")
-                            _need_retry[0] = False
-                            buzzer.beep_twice()
-                            state = RECORDING
-                        elif _need_retry[0] and len(face_list) > 0 and not _uploading[0]:
-                            _need_retry[0] = False  # 只允许重试一次
-                            logger.info("Main", "重试录音")
-                            _need_retry[0] = False
-                            buzzer.beep_twice()
-                            state = RECORDING
                     else:
-                        time.sleep_ms(1000)  # 非检测周期，降低循环频率
+                        time.sleep_ms(1000)
 
                     # ── 轮询后端指令（仅 DETECTING 空闲时）──
-                    if state == DETECTING and not _uploading[0]:
+                    if state == DETECTING:
                         cmd = http_client.get_command()
                         if cmd == "record":
                             logger.info("Main", "收到后端录音指令")
-                            _need_retry[0] = False
                             buzzer.beep_twice()
                             state = RECORDING
 
@@ -231,13 +186,6 @@ def main():
                         logger.warn("Main", "录音失败，恢复摄像头")
                         _sensor_resume(sensor)
                         detect_task = face_detect.init_detector()
-                        _last_record_time[0] = 0
-                        _last_detect_time[0] = 0
-                        if _need_retry[0]:
-                            _need_retry[0] = False
-                            logger.info("Main", "重试也失败，等待新人脸")
-                        else:
-                            _need_retry[0] = True
                         state = DETECTING
 
                 elif state == UPLOADING:
@@ -254,8 +202,6 @@ def main():
                         pass
                     _sensor_resume(sensor)
                     detect_task = face_detect.init_detector()
-                    _last_record_time[0] = 0  # 重置冷却，允许立即检测
-                    _last_detect_time[0] = 0
                     logger.info("Main", "上传完成，恢复检测")
                     state = DETECTING
 

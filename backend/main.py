@@ -71,16 +71,6 @@ _session = ConversationSession()
 _pending_command: str | None = None  # "record" or None
 
 
-def _has_question(text: str) -> bool:
-    """检测回复是否带有疑问语气，用于判断是否需要主动追问。"""
-    import re
-    if re.search(r'[吗？?呢吧啊呀么]+[？?！!]*$', text):
-        return True
-    if re.search(r'(想不想|要不要|有没有|能不能|是不是|怎么样|好不好|觉得呢)', text):
-        return True
-    return False
-
-
 @app.get("/api/command")
 async def get_command():
     """K230 轮询此接口获取待执行指令，取走后清空。"""
@@ -208,7 +198,7 @@ def _strip_markdown(text: str) -> str:
 
 
 async def _speak(text: str):
-    """TTS 合成并播放，播放完后如果带疑问语气则设置录音指令。"""
+    """TTS 合成并播放，播放完后必定触发 K230 录音。"""
     global _pending_command
     text = _strip_markdown(text)
     if not text:
@@ -216,10 +206,9 @@ async def _speak(text: str):
     try:
         audio_path = await tts_engine.synthesize(text)
         await audio_player.play(audio_path)
-        # 播放完毕后检测疑问语气，设置指令让 K230 主动录音
-        if _has_question(text):
-            _pending_command = "record"
-            logger.info("检测到疑问语气，已设置录音指令")
+        # 播放完毕后必定设置录音指令，驱动对话循环
+        _pending_command = "record"
+        logger.info("TTS 播放完毕，已设置录音指令")
     except Exception as e:
         logger.error("TTS/播放失败: %s", e)
 
