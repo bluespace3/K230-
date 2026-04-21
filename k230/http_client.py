@@ -30,15 +30,37 @@ def send_event(event_type, data, timeout=3):
         return False
 
 
+def _suppress_stdout(func, *args, **kwargs):
+    """临时屏蔽 stdout（抑制 MicroPython socket 内部的 connect 日志）。"""
+    import sys
+    old_stdout = sys.stdout
+
+    class _DevNull:
+        def write(self, s):
+            pass
+        def flush(self):
+            pass
+
+    try:
+        sys.stdout = _DevNull()
+        result = func(*args, **kwargs)
+    except Exception:
+        result = None
+    finally:
+        sys.stdout = old_stdout
+    return result
+
+
 def get_command(timeout=3):
     """轮询后端指令，返回 command 字符串或 None。"""
     import json
     url = PC_BACKEND_URL + "/api/command"
     try:
-        resp = requests.get(url, timeout=timeout)
+        resp = _suppress_stdout(requests.get, url, timeout=timeout)
+        if resp is None:
+            return None
         raw = resp.read()
         resp.close()
-        logger.info("HTTP", "command resp: " + raw[:80])
         data = json.loads(raw)
         cmd = data.get("command")
         if cmd:
