@@ -15,6 +15,7 @@ def send_event(event_type, data, timeout=3):
     url = PC_BACKEND_URL + "/api/event"
 
     logger.info("HTTP", "发送事件: " + event_type)
+    resp = None
     try:
         resp = requests.post(
             url,
@@ -22,29 +23,40 @@ def send_event(event_type, data, timeout=3):
             headers={"Content-Type": "application/json"},
             timeout=timeout,
         )
-        resp.close()
         logger.info("HTTP", "事件已发送: " + event_type)
         return True
     except Exception as e:
         logger.warn("HTTP", "事件发送失败（不影响运行）: " + str(e))
         return False
+    finally:
+        if resp:
+            try:
+                resp.close()
+            except Exception:
+                pass
 
 
 def get_command(timeout=3):
     """轮询后端指令，返回 command 字符串或 None。"""
     import json
     url = PC_BACKEND_URL + "/api/command"
+    resp = None
     try:
         resp = requests.get(url, timeout=timeout)
         raw = resp.read()
-        resp.close()
         data = json.loads(raw)
         cmd = data.get("command")
         if cmd:
             logger.info("HTTP", "收到指令: " + cmd)
         return cmd
-    except Exception as e:
+    except Exception:
         return None
+    finally:
+        if resp:
+            try:
+                resp.close()
+            except Exception:
+                pass
 
 
 def _send_all(sock, data):
