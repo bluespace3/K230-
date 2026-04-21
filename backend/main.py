@@ -109,13 +109,14 @@ async def health():
 @app.post("/api/event")
 async def handle_event(event: EventRequest):
     """接收 K230 感知事件，收到即返回 200，处理中去重丢弃。"""
-    global _processing, _session
+    global _processing, _session, _pending_command
     logger.info("处理事件: type=%s data=%s", event.type, event.data)
 
     # 会话超时则重置
     if _session.is_expired():
         logger.info("会话超时，开启新会话")
         _session = ConversationSession()
+        _pending_command = None
 
     # 人脸到达事件：仅在未打过招呼时触发问候
     if event.type == "face":
@@ -258,12 +259,13 @@ async def handle_voice(request: Request):
 
 async def _process_voice(save_path: Path):
     """后台处理语音：ASR → LLM（带历史）→ TTS 播放。"""
-    global _session
+    global _session, _pending_command
 
     # 会话超时则重置
     if _session.is_expired():
         logger.info("会话超时，开启新会话")
         _session = ConversationSession()
+        _pending_command = None
 
     # 保存录音到 asr 调试目录
     debug_path = ASR_DEBUG_DIR / save_path.name
