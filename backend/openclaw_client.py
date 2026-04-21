@@ -20,13 +20,17 @@ def _build_headers() -> dict[str, str]:
     return headers
 
 
-def _build_messages(user_message: str, context: str | None = None) -> list[dict]:
+def build_messages(
+    user_message: str,
+    history: list[dict] | None = None,
+    context: str | None = None,
+) -> list[dict]:
+    """构建完整 messages 列表：system + 历史对话 + 当前消息。"""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     if context:
-        messages.append({
-            "role": "system",
-            "content": f"当前感知上下文：{context}",
-        })
+        messages.append({"role": "system", "content": f"当前感知上下文：{context}"})
+    if history:
+        messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     return messages
 
@@ -58,13 +62,14 @@ def _extract_stream_text(delta: dict) -> str:
 
 async def chat_stream(
     user_message: str,
+    history: list[dict] | None = None,
     context: str | None = None,
 ):
     """流式调用 OpenClaw，逐块 yield 纯文本片段（已过滤工具调用）。"""
     url = f"{OPENCLAW_GATEWAY_URL}/v1/chat/completions"
     payload = {
         "model": OPENCLAW_MODEL,
-        "messages": _build_messages(user_message, context),
+        "messages": build_messages(user_message, history, context),
         "stream": True,
     }
 
