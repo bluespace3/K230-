@@ -84,6 +84,11 @@ def _setup_ai2d():
 
 def init_detector(model_path=DETECT_MODEL):
     """加载人脸检测模型，返回 KPU 对象。"""
+    global _last_face_count, _face_arrived_flag, _no_face_count
+    _last_face_count = 0
+    _face_arrived_flag = False
+    _no_face_count = 0
+
     logger.info("Face", "正在加载人脸检测模型...")
     kpu = nn.kpu()
     kpu.load_kmodel(model_path)
@@ -211,6 +216,11 @@ def run_frame(detect_kpu, ai_img, recog_kpu=None):
         face_list = faces[0] if isinstance(faces[0], list) else faces
         if not face_list:
             return []
+
+        # 只保留最大的一张脸（避免同一人被重复检测）
+        if len(face_list) > 1:
+            best = max(face_list, key=lambda f: f[2] * f[3] if len(f) >= 4 else 0)
+            face_list = [best]
 
         # 检测人脸从0变>0，设置标志供主循环使用
         if _last_face_count == 0:
