@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+venv/
+.env
+*.wav
+*.mp3
+temp/
+models/
+logs/
+.claude/
