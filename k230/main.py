@@ -163,8 +163,6 @@ def main():
                                     color=(0, 255, 0, 255), thickness=2,
                                 )
                         Display.show_image(osd_img, 0, 0, Display.LAYER_OSD1)
-                    else:
-                        time.sleep_ms(1000)
 
                     # ── 轮询后端指令（仅 DETECTING 空闲时）──
                     if state == DETECTING:
@@ -173,6 +171,8 @@ def main():
                             logger.info("Main", "收到后端录音指令")
                             buzzer.beep_twice()
                             state = RECORDING
+
+                    time.sleep_ms(1000)  # 统一限速 1 秒
 
                 elif state == RECORDING:
                     # ── 录音：暂停摄像头释放 DMA ──
