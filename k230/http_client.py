@@ -43,9 +43,7 @@ def get_command(timeout=3):
     resp = None
     try:
         resp = requests.get(url, timeout=timeout)
-        raw = resp.read()
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
+        raw = resp.text  # MicroPython 的 urequests 是 .text (字符串) 或 .content (bytes)
         logger.info("HTTP", "command 原始响应: " + raw[:80])
         data = json.loads(raw)
 
