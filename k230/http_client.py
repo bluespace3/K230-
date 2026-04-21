@@ -44,12 +44,16 @@ def get_command(timeout=3):
     try:
         resp = requests.get(url, timeout=timeout)
         raw = resp.read()
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        logger.info("HTTP", "command 原始响应: " + raw[:80])
         data = json.loads(raw)
         cmd = data.get("command")
         if cmd:
             logger.info("HTTP", "收到指令: " + cmd)
         return cmd
-    except Exception:
+    except Exception as e:
+        logger.warn("HTTP", "get_command 异常: " + str(e))
         return None
     finally:
         if resp:
