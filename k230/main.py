@@ -138,7 +138,6 @@ def main():
                 os.exitpoint()
 
                 if state == DETECTING:
-                    # ── 人脸检测（每 5 秒检测一次，仅上报事件）──
                     now = time.ticks_ms()
                     detect_ok = time.ticks_diff(now, _last_detect_time[0]) > DETECT_INTERVAL_MS
 
@@ -171,15 +170,20 @@ def main():
                         Display.show_image(osd_img, 0, 0, Display.LAYER_OSD1)
 
                     # ── 轮询后端指令（仅 DETECTING 空闲时，3 秒一次）──
-                    if state == DETECTING and time.ticks_diff(now, _last_poll_time[0]) > POLL_INTERVAL_MS:
+                    poll_ok = time.ticks_diff(now, _last_poll_time[0]) > POLL_INTERVAL_MS
+                    if state == DETECTING and poll_ok:
                         _last_poll_time[0] = now
+                        logger.info("Main", ">>> 开始轮询后端指令...")
                         cmd = http_client.get_command()
+                        logger.info("Main", ">>> 轮询结果: cmd=" + str(cmd))
                         if cmd == "record":
-                            logger.info("Main", "收到后端录音指令")
+                            logger.info("Main", "收到后端录音指令，进入 RECORDING")
                             buzzer.beep_twice()
                             state = RECORDING
+                    elif state == DETECTING and not poll_ok:
+                        pass  # 未到轮询时间，静默
 
-                    time.sleep_ms(1000)  # 统一限速 1 秒
+                    time.sleep_ms(1000)
 
                 elif state == RECORDING:
                     # ── 录音：暂停摄像头释放 DMA ──
