@@ -32,16 +32,20 @@ def send_event(event_type, data, timeout=3):
 
 def get_command(timeout=3):
     """轮询后端指令，返回 command 字符串或 None。"""
+    import json
     url = PC_BACKEND_URL + "/api/command"
     try:
         resp = requests.get(url, timeout=timeout)
-        data = resp.json()
+        raw = resp.read()
         resp.close()
+        logger.info("HTTP", "command resp: " + raw[:80])
+        data = json.loads(raw)
         cmd = data.get("command")
         if cmd:
             logger.info("HTTP", "收到指令: " + cmd)
         return cmd
     except Exception as e:
+        logger.warn("HTTP", "get_command 异常: " + str(e))
         return None
 
 
