@@ -480,9 +480,10 @@ K230                    PC Backend              OpenClaw Gateway         TTS/Spe
 
 | 项目 | 状态 | 说明 |
 |------|------|------|
+| uvicorn reload | BUG | `reload=True` 时 httpx stream 行为异常，当前设为 `False` |
 | 人脸注册 | 需实现 | `register_face()` API 已定义，需加按键触发注册逻辑 |
 | 语音唤醒词 | TODO | K230 端做唤醒词检测，唤醒后才开始录音 |
-| uvicorn reload | BUG | `reload=True` 时 httpx stream 行为异常，当前设为 `False` |
 | 多事件并发 | 未处理 | 同时来人脸+手势事件时可能冲突，需要事件合并逻辑 |
 | K230 WiFi | 注意 | 仅支持 2.4GHz，5GHz WiFi 无法连接 |
 | 人脸库持久化 | TODO | 当前人脸库存在内存，重启后丢失，需保存到文件 |
+
