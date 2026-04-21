@@ -179,7 +179,8 @@ def main():
                         frame_count += 1
 
                         face_list = face_detect.run_frame(detect_task, ai_img)
-                        logger.info("Main", "人脸检测: 发现 " + str(len(face_list)) + " 张脸")
+                        if face_list:
+                            logger.info("Main", "人脸检测: 发现 " + str(len(face_list)) + " 张脸")
 
                         # 绘制检测框
                         osd_img.clear()
