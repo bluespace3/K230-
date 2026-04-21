@@ -48,6 +48,8 @@ DETECTING = 0
 RECORDING = 1
 UPLOADING = 2
 _last_detect_time = [0]  # 上次人脸检测时间
+_last_poll_time = [0]    # 上次轮询时间
+POLL_INTERVAL_MS = 3000  # 轮询间隔 3 秒
 
 
 def _sensor_pause(sensor):
@@ -164,8 +166,9 @@ def main():
                                 )
                         Display.show_image(osd_img, 0, 0, Display.LAYER_OSD1)
 
-                    # ── 轮询后端指令（仅 DETECTING 空闲时）──
-                    if state == DETECTING:
+                    # ── 轮询后端指令（仅 DETECTING 空闲时，3 秒一次）──
+                    if state == DETECTING and time.ticks_diff(now, _last_poll_time[0]) > POLL_INTERVAL_MS:
+                        _last_poll_time[0] = now
                         cmd = http_client.get_command()
                         if cmd == "record":
                             logger.info("Main", "收到后端录音指令")
