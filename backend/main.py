@@ -79,7 +79,15 @@ async def get_command():
     _pending_command = None
     if cmd:
         logger.info("K230 取走指令: %s", cmd)
-    return {"command": cmd}
+
+    # 附加服务器时间给 K230（格式: YYYY-MM-DD HH:MM:SS）
+    import datetime
+    server_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    return {
+        "command": cmd,
+        "server_time": server_time
+    }
 
 
 @app.middleware("http")

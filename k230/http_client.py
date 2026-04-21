@@ -48,6 +48,12 @@ def get_command(timeout=3):
             raw = raw.decode("utf-8")
         logger.info("HTTP", "command 原始响应: " + raw[:80])
         data = json.loads(raw)
+
+        # 打印服务器时间，方便对齐前后端日志
+        server_time = data.get("server_time")
+        if server_time:
+            logger.info("HTTP", f"当前服务器时间: {server_time}")
+
         cmd = data.get("command")
         if cmd:
             logger.info("HTTP", "收到指令: " + cmd)
