@@ -30,6 +30,21 @@ def send_event(event_type, data, timeout=3):
         return False
 
 
+def get_command(timeout=3):
+    """轮询后端指令，返回 command 字符串或 None。"""
+    url = PC_BACKEND_URL + "/api/command"
+    try:
+        resp = requests.get(url, timeout=timeout)
+        data = resp.json()
+        resp.close()
+        cmd = data.get("command")
+        if cmd:
+            logger.info("HTTP", "收到指令: " + cmd)
+        return cmd
+    except Exception as e:
+        return None
+
+
 def _send_all(sock, data):
     """确保所有数据都发送完毕，处理部分发送和 EAGAIN。"""
     total = 0

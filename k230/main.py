@@ -209,6 +209,15 @@ def main():
                     else:
                         time.sleep_ms(1000)  # 非检测周期，降低循环频率
 
+                    # ── 轮询后端指令（仅 DETECTING 空闲时）──
+                    if state == DETECTING and not _uploading[0]:
+                        cmd = http_client.get_command()
+                        if cmd == "record":
+                            logger.info("Main", "收到后端录音指令")
+                            _need_retry[0] = False
+                            buzzer.beep_twice()
+                            state = RECORDING
+
                 elif state == RECORDING:
                     # ── 录音：暂停摄像头释放 DMA ──
                     _sensor_pause(sensor)
