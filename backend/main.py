@@ -118,10 +118,10 @@ async def handle_event(event: EventRequest):
         _session = ConversationSession()
         _pending_command = None
 
-    # 人脸到达事件：仅在未打过招呼时触发问候
+    # 人脸事件：arrive(首次) 或 present(定期上报) 都可触发问候
     if event.type == "face":
         action = event.data.get("action", "detect")
-        if action == "arrive":
+        if action in ("arrive", "present"):
             if _session.greeted:
                 logger.info("会话内已打过招呼，跳过")
                 return JSONResponse({"status": "ignored_greeted"}, status_code=200)

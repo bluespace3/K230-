@@ -48,8 +48,10 @@ DETECTING = 0
 RECORDING = 1
 UPLOADING = 2
 _last_detect_time = [0]  # 上次人脸检测时间
+_last_report_time = [0]  # 上次上报人脸事件时间
 _last_poll_time = [0]    # 上次轮询时间
 POLL_INTERVAL_MS = 3000  # 轮询间隔 3 秒
+REPORT_INTERVAL_MS = 15000  # 上报人脸间隔 15 秒
 
 
 def _sensor_pause(sensor):
@@ -151,6 +153,13 @@ def main():
                         face_list = face_detect.run_frame(detect_task, ai_img)
                         if face_list:
                             logger.info("Main", "人脸检测: 发现 " + str(len(face_list)) + " 张脸")
+                            # 定期上报人脸事件（不依赖 face_detect 内部逻辑）
+                            if time.ticks_diff(now, _last_report_time[0]) > REPORT_INTERVAL_MS:
+                                _last_report_time[0] = now
+                                http_client.send_event("face", {
+                                    "action": "present",
+                                    "face_count": len(face_list),
+                                })
 
                         # 绘制检测框
                         osd_img.clear()
