@@ -186,6 +186,7 @@ def main():
                         logger.warn("Main", "录音失败，恢复摄像头")
                         _sensor_resume(sensor)
                         detect_task = face_detect.init_detector()
+                        _last_detect_time[0] = 0
                         state = DETECTING
 
                 elif state == UPLOADING:
@@ -202,6 +203,7 @@ def main():
                         pass
                     _sensor_resume(sensor)
                     detect_task = face_detect.init_detector()
+                    _last_detect_time[0] = 0  # 立即恢复人脸检测
                     logger.info("Main", "上传完成，恢复检测")
                     state = DETECTING
 
