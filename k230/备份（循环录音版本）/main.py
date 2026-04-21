@@ -42,8 +42,8 @@ AI_WIDTH = 320
 AI_HEIGHT = 240
 
 RECORD_DURATION = 5  # 录音秒数
-COOLDOWN_MS = 30000  # 录音后冷却 30 秒，防止连续触发
-DETECT_INTERVAL_MS = 30000  # 人脸检测间隔 30 秒
+COOLDOWN_MS = 5000  # 录音后冷却 5 秒
+DETECT_INTERVAL_MS = 5000  # 人脸检测间隔 5 秒
 
 # ── 状态 ───────────────────────────────────────
 DETECTING = 0
@@ -53,6 +53,23 @@ _last_record_time = [0]  # 用列表包装，避免 global 声明
 _last_detect_time = [0]  # 上次人脸检测时间
 _need_retry = [False]    # 录音失败后允许重试一次
 _uploading = [False]     # 后台上传进行中标记
+
+
+def _sensor_pause(sensor):
+    """暂停传感器，释放 DMA 资源给录音。"""
+    sensor.stop()
+
+
+def _sensor_resume(sensor):
+    """恢复传感器：reset + 重新配置 + 启动。"""
+    sensor.reset()
+    sensor.set_framesize(width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT, chn=0)
+    sensor.set_pixformat(Sensor.YUV420SP, chn=0)
+    sensor.set_framesize(width=AI_WIDTH, height=AI_HEIGHT, chn=1)
+    sensor.set_pixformat(Sensor.RGBP888, chn=1)
+    Display.bind_layer(**sensor.bind_info(x=0, y=0, chn=0), layer=Display.LAYER_VIDEO1)
+    sensor.run()
+    logger.info("Main", "传感器已恢复")
 
 
 def _upload_voice_thread(filepath):
@@ -162,6 +179,8 @@ def main():
                         frame_count += 1
 
                         face_list = face_detect.run_frame(detect_task, ai_img)
+                        if face_list:
+                            logger.info("Main", "人脸检测: 发现 " + str(len(face_list)) + " 张脸")
 
                         # 绘制检测框
                         osd_img.clear()
@@ -191,17 +210,29 @@ def main():
                     else:
                         time.sleep_ms(1000)  # 非检测周期，降低循环频率
 
+                    # ── 轮询后端指令（仅 DETECTING 空闲时）──
+                    if state == DETECTING and not _uploading[0]:
+                        cmd = http_client.get_command()
+                        if cmd == "record":
+                            logger.info("Main", "收到后端录音指令")
+                            _need_retry[0] = False
+                            buzzer.beep_twice()
+                            state = RECORDING
+
                 elif state == RECORDING:
-                    # ── 录音 ──
-                    logger.info("Main", "开始录音...")
+                    # ── 录音：暂停摄像头释放 DMA ──
+                    _sensor_pause(sensor)
                     filepath = voice_capture.record()
                     buzzer.beep()
 
                     if filepath:
                         state = UPLOADING
                     else:
-                        logger.warn("Main", "录音失败，回到检测")
-                        _last_record_time[0] = time.ticks_ms()
+                        logger.warn("Main", "录音失败，恢复摄像头")
+                        _sensor_resume(sensor)
+                        detect_task = face_detect.init_detector()
+                        _last_record_time[0] = 0
+                        _last_detect_time[0] = 0
                         if _need_retry[0]:
                             _need_retry[0] = False
                             logger.info("Main", "重试也失败，等待新人脸")
@@ -210,7 +241,7 @@ def main():
                         state = DETECTING
 
                 elif state == UPLOADING:
-                    # ── 同步上传 ──
+                    # ── 同步上传，完成后恢复摄像头 ──
                     logger.info("Main", "上传语音到后端...")
                     result = http_client.send_voice_file(filepath)
                     if result:
@@ -221,8 +252,11 @@ def main():
                         os.remove(filepath)
                     except Exception:
                         pass
-                    _last_record_time[0] = time.ticks_ms()
-                    logger.info("Main", "回到人脸检测...")
+                    _sensor_resume(sensor)
+                    detect_task = face_detect.init_detector()
+                    _last_record_time[0] = 0  # 重置冷却，允许立即检测
+                    _last_detect_time[0] = 0
+                    logger.info("Main", "上传完成，恢复检测")
                     state = DETECTING
 
                 if frame_count % 100 == 0:
